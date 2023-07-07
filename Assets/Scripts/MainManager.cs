@@ -3,18 +3,22 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using System.IO;
 
 public class MainManager : MonoBehaviour
 {
     public static MainManager Instance;
 
     public string playerName;
+    public string playerNameInHighScore;
+    public int highScore;
 
     public Brick BrickPrefab;
     public int LineCount = 6;
-    public Rigidbody Ball;
+    public Rigidbody ball;
 
     public Text ScoreText;
+    public Text highScoreText;
     public GameObject GameOverText;
     
     private bool m_Started = false;
@@ -24,19 +28,31 @@ public class MainManager : MonoBehaviour
 
     void Awake()
     {
-        Debug.Log("MainManager Awake");
-        playerName = CurentPlayerName.Instance.playerName;
-        Ball = null;
-        Ball = GameObject.Find("Ball").GetComponent<Rigidbody>();
-
-        if (Instance == null)
+        if (File.Exists(Application.persistentDataPath + "/savefile.json")) {
+            string jsonString = File.ReadAllText(Application.persistentDataPath + "/savefile.json");
+            SaveData loadedData = JsonUtility.FromJson<SaveData>(jsonString);
+            highScore = loadedData.m_PointsInSave;
+            playerNameInHighScore = loadedData.playerNameInSave;
+        } else
         {
-            Instance = this;
-            DontDestroyOnLoad(gameObject); 
+            highScore = 0;
+            playerNameInHighScore = "Nobody";
         }
-        else
+
+        highScoreText.text = "High Score : " + playerNameInHighScore + " : " + highScore;
+
+        playerName = CurentPlayerName.Instance.playerName;
+
+        if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
+            return;
+        }
+
+        if (ball == null)
+        {
+            Debug.Log(GameObject.Find("Ball"));
+            ball = GameObject.Find("Ball")?.GetComponent<Rigidbody>();
         }
 
         const float step = 0.6f;
@@ -66,8 +82,8 @@ public class MainManager : MonoBehaviour
                 Vector3 forceDir = new Vector3(randomDirection, 1, 0);
                 forceDir.Normalize();
 
-                Ball.transform.SetParent(null);
-                Ball.AddForce(forceDir * 2.0f, ForceMode.VelocityChange);
+                ball.transform.SetParent(null);
+                ball.AddForce(forceDir * 2.0f, ForceMode.VelocityChange);
             }
         }
         else if (m_GameOver)
@@ -89,8 +105,31 @@ public class MainManager : MonoBehaviour
 
     public void GameOver()
     {
+        UpdateHighScore();
         m_GameOver = true;
         GameOverText.SetActive(true);
         ScoreText.text = "Score : " + playerName + " : " + m_Points;
+    }
+
+    [System.Serializable]
+    class SaveData
+    {
+        public string playerNameInSave;
+        public int m_PointsInSave;
+    }
+
+    public void UpdateHighScore()
+    {
+        if (m_Points < highScore) {
+            return;
+        }
+        highScoreText.text = "High Score : " + playerName + " : " + m_Points;
+        SaveData data = new SaveData();
+        data.playerNameInSave = playerName;
+        data.m_PointsInSave = m_Points;
+
+        string json = JsonUtility.ToJson(data);
+
+        File.WriteAllText(Application.persistentDataPath + "/savefile.json", json);
     }
 }
